@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import com.texoit.wellington.gra.domain.dto.ProducerAwardsDTO;
 import com.texoit.wellington.gra.domain.dto.ProducerMinMaxAwardsDTO;
+import com.texoit.wellington.gra.domain.enumeration.AwardClassification;
 import com.texoit.wellington.gra.domain.model.Movie;
 import com.texoit.wellington.gra.domain.model.MovieProducer;
 import com.texoit.wellington.gra.domain.model.Producer;
@@ -42,16 +43,60 @@ public class ProducerService {
 	}
 
 	public ProducerMinMaxAwardsDTO findMaxAndMinAwards() {
-		Integer minInterval = movieProducerRepository.findMinInterval();
-		Integer maxInterval = movieProducerRepository.findMaxInterval();
+		List<MovieProducer> movieProducerList = movieProducerRepository.findMovieProducerWinner();
 
-		List<ProducerAwardsDTO> producersMinAwards = movieProducerRepository.findProducersMinAwards(minInterval);
-		List<ProducerAwardsDTO> producersMaxAwards = movieProducerRepository.findProducersMaxAwards(maxInterval);
+		ProducerAwardsDTO previous = findPreviousOrFollowingAwards(movieProducerList, AwardClassification.PREVIOUS);
+		ProducerAwardsDTO following = findPreviousOrFollowingAwards(movieProducerList, AwardClassification.FOLLOWING);
 
 		ProducerMinMaxAwardsDTO producerMinMaxAwardsDTO = new ProducerMinMaxAwardsDTO();
-		producersMinAwards.forEach(p -> producerMinMaxAwardsDTO.addMin(p));
-		producersMaxAwards.forEach(p -> producerMinMaxAwardsDTO.addMax(p));
+		producerMinMaxAwardsDTO.addMin(previous);
+		producerMinMaxAwardsDTO.addMax(following);
 
 		return producerMinMaxAwardsDTO;
+	}
+
+	private ProducerAwardsDTO findPreviousOrFollowingAwards(List<MovieProducer> movieProducerList,
+			AwardClassification classification) {
+		ProducerAwardsDTO producerAwardsDTO = new ProducerAwardsDTO(null, null, null, null);
+
+		if (classification == AwardClassification.FOLLOWING) {
+			producerAwardsDTO.setInterval(Integer.MIN_VALUE);
+		} else {
+			producerAwardsDTO.setInterval(Integer.MAX_VALUE);
+		}
+
+		for (int i = 0; i < movieProducerList.size() - 1; i++) {
+			for (int j = i + 1; j < movieProducerList.size(); j++) {
+
+				MovieProducer previous = movieProducerList.get(i);
+				MovieProducer following = movieProducerList.get(j);
+
+				if (previous.getProducer().equals(following.getProducer())) {
+					Integer interval = Math.abs(previous.getMovie().getYear() - following.getMovie().getYear());
+
+					if (classification == AwardClassification.FOLLOWING) {
+						if (interval > producerAwardsDTO.getInterval()) {
+							producerAwardsDTO.setInterval(interval);
+							producerAwardsDTO.setProducer(previous.getProducer().getName());
+							producerAwardsDTO.setPreviousWin(previous.getMovie().getYear());
+							producerAwardsDTO.setFollowingWin(following.getMovie().getYear());
+
+							break;
+						}
+					} else {
+						if (interval < producerAwardsDTO.getInterval()) {
+							producerAwardsDTO.setInterval(interval);
+							producerAwardsDTO.setProducer(previous.getProducer().getName());
+							producerAwardsDTO.setPreviousWin(previous.getMovie().getYear());
+							producerAwardsDTO.setFollowingWin(following.getMovie().getYear());
+
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		return producerAwardsDTO;
 	}
 }
